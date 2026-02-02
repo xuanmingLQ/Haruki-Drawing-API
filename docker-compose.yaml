@@ -13,6 +13,7 @@ services:
       - "./data:/app/haruki_drawing_api/data"
       - "./configs.docker.yaml:/app/haruki_drawing_api/configs.yaml"
     restart: always
+    command: ["--host", "0.0.0.0", "--port", "8000"]
     depends_on:
       screenshot-service:
         condition: service_healthy
