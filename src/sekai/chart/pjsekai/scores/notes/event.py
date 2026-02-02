@@ -1,7 +1,7 @@
 import dataclasses
 
-from .base import BaseNote
 from ..types import Fraction
+from .base import BaseNote
 
 
 @dataclasses.dataclass
@@ -24,7 +24,7 @@ class Event(BaseNote):
     def __hash__(self) -> int:
         return hash(str(self))
 
-    def __or__(self, other: 'Event'):
+    def __or__(self, other: "Event"):
         assert self.bar <= other.bar
         return Event(
             bar=other.bar,

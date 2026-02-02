@@ -1,13 +1,12 @@
-import json
 import dataclasses
+import json
 
+from .meta import *
 from .notes import *
+from .score import *
 from .types import *
 
-from .score import *
-from .meta import *
-
-__all__ = ['Rebase']
+__all__ = ["Rebase"]
 
 
 @dataclasses.dataclass
@@ -17,7 +16,7 @@ class Rebase:
     meta: Meta
 
     @classmethod
-    def load(cls, a) -> 'Rebase':
+    def load(cls, a) -> "Rebase":
         if isinstance(a, dict):
             return cls.load_from_dict(a)
 
@@ -25,21 +24,21 @@ class Rebase:
         return cls.load_from_dict(a)
 
     @classmethod
-    def load_from_dict(cls, d: dict) -> 'Rebase':
+    def load_from_dict(cls, d: dict) -> "Rebase":
         return Rebase(
-            offset=d.get('offset', 0),
+            offset=d.get("offset", 0),
             events=[
                 Event(
-                    bar=event.get('bar'),
-                    bpm=event.get('bpm'),
-                    bar_length=event.get('barLength'),
-                    sentence_length=event.get('sentenceLength'),
-                    section=event.get('section'),
-                    text=event.get('text'),
+                    bar=event.get("bar"),
+                    bpm=event.get("bpm"),
+                    bar_length=event.get("barLength"),
+                    sentence_length=event.get("sentenceLength"),
+                    section=event.get("section"),
+                    text=event.get("text"),
                 )
-                for event in d.get('events', [])
+                for event in d.get("events", [])
             ],
-            meta=Meta(**d.get('meta', {})),
+            meta=Meta(**d.get("meta", {})),
         )
 
     def __call__(rebase, self: Score) -> Score:
@@ -51,14 +50,7 @@ class Rebase:
             return dataclasses.replace(
                 note_0,
                 bar=score.get_bar_by_time(self.get_time(note_0.bar) - rebase.offset),
-                **{
-                    key: None
-                    for key in {
-                        Tap: [],
-                        Directional: ['tap'],
-                        Slide: ['tap', 'directional', 'next', 'head'],
-                    }[type(note_0)]
-                },
+                **dict.fromkeys({Tap: [], Directional: ["tap"], Slide: ["tap", "directional", "next", "head"]}[type(note_0)]),
             )
 
         for note_0 in self.notes:
@@ -79,11 +71,14 @@ class Rebase:
                     if note_0.directional.tap and note_0.directional.tap is not note_0.tap:
                         score.notes.append(rebase_note(note_0.directional.tap))
 
-        score.events = sorted(score.events + [
-            dataclasses.replace(event, bar=score.get_bar_by_time(self.get_time(event.bar) - rebase.offset))
-            for event in self.events
-            if event.speed or event.text
-        ])
+        score.events = sorted(
+            score.events
+            + [
+                dataclasses.replace(event, bar=score.get_bar_by_time(self.get_time(event.bar) - rebase.offset))
+                for event in self.events
+                if event.speed or event.text
+            ]
+        )
 
         score.notes.sort(key=lambda note: note.bar)
         score._init_notes()
