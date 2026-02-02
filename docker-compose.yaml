@@ -13,6 +13,8 @@ services:
       - "./data:/app/haruki_drawing_api/data"
       - "./configs.docker.yaml:/app/haruki_drawing_api/configs.yaml"
     restart: always
+    # 这个command会替换Dockerfile中的CMD指令，
+    # 需要注意的是，如果这里修改了端口号，那么上面的ports映射也需要相应修改
     command: ["--host", "0.0.0.0", "--port", "8000"]
     depends_on:
       screenshot-service:
