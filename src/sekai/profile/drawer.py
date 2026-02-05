@@ -115,9 +115,7 @@ CHARA_ID2NICKNAME = {
 # =========================== 从.model导入数据类型 =========================== #
 
 from .model import (
-    BasicProfile,
     CardFullThumbnailRequest,
-    DetailedProfileCardRequest,
     ProfileBgSettings,
     ProfileCardRequest,
     ProfileRequest,
@@ -158,21 +156,23 @@ async def get_card_full_thumbnail(rqd: CardFullThumbnailRequest) -> Image.Image:
             draw.text((6, img_h - 31), f"Lv.{level}", font=get_font(DEFAULT_BOLD_FONT, 20), fill=WHITE)
 
     # 绘制边框
-    frame_img = await get_img_from_path(ASSETS_BASE_DIR, rqd.frame_img_path)
-    frame_img = frame_img.resize((img_w, img_h))
-    img.paste(frame_img, (0, 0), frame_img)
+    if rqd.frame_img_path:
+        frame_img = await get_img_from_path(ASSETS_BASE_DIR, rqd.frame_img_path)
+        frame_img = frame_img.resize((img_w, img_h))
+        img.paste(frame_img, (0, 0), frame_img)
     # 绘制特训等级
     if pcard:
         rank = rqd.train_rank
-        if rank:
+        if rank and rqd.train_rank_img_path:
             rank_img = await get_img_from_path(ASSETS_BASE_DIR, rqd.train_rank_img_path)
             rank_img = rank_img.resize((int(img_w * 0.35), int(img_h * 0.35)))
             rank_img_w, rank_img_h = rank_img.size
             img.paste(rank_img, (img_w - rank_img_w, img_h - rank_img_h), rank_img)
     # 左上角绘制属性
-    attr_img = await get_img_from_path(ASSETS_BASE_DIR, rqd.attr_img_path)
-    attr_img = attr_img.resize((int(img_w * 0.22), int(img_h * 0.25)))
-    img.paste(attr_img, (1, 0), attr_img)
+    if rqd.attr_img_path:
+        attr_img = await get_img_from_path(ASSETS_BASE_DIR, rqd.attr_img_path)
+        attr_img = attr_img.resize((int(img_w * 0.22), int(img_h * 0.25)))
+        img.paste(attr_img, (1, 0), attr_img)
     # 左下角绘制稀有度
     hoffset, voffset = 6, 6 if not pcard else 24
     scale = 0.17 if not pcard else 0.15
@@ -277,68 +277,6 @@ def process_hide_uid(is_hide_uid: bool, uid: str, keep: int = 0) -> str:
             return "*" * (16 - keep) + str(uid)[-keep:]
         return "*" * 16
     return uid
-
-
-async def get_detailed_profile_card(rqd: DetailedProfileCardRequest) -> Frame:
-    profile = rqd
-    with Frame().set_bg(roundrect_bg(alpha=80)).set_padding(16) as f:
-        with HSplit().set_content_align("c").set_item_align("c").set_sep(14):
-            if profile:
-                mode = profile.mode
-                has_frame = profile.has_frame
-                avatar_img = await get_img_from_path(ASSETS_BASE_DIR, profile.leader_image_path)
-                avatar_widget = await get_avatar_widget_with_frame(  # noqa: F841
-                    is_frame=bool(has_frame),
-                    frame_paths=None,  # DetailedProfileCardRequest 不支持 frame_paths
-                    avatar_img=avatar_img,
-                    avatar_w=80,
-                    frame_data=[],
-                )
-                with VSplit().set_content_align("c").set_item_align("l").set_sep(5):
-                    source = profile.source or "?"
-                    update_time = datetime.fromtimestamp(profile.update_time / 1000)
-                    update_time_text = (
-                        update_time.strftime("%m-%d %H:%M:%S")
-                        + f" ({get_readable_datetime(update_time, show_original_time=False)})"
-                    )
-                    user_id = process_hide_uid(profile.is_hide_uid, profile.id, keep=6)
-                    colored_text_box(
-                        truncate(profile.nickname, 64),
-                        TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2),
-                    )
-                    TextBox(
-                        f"{profile.region.upper()}: {user_id} Suite数据",
-                        TextStyle(font=DEFAULT_FONT, size=16, color=BLACK),
-                    )
-                    TextBox(f"更新时间: {update_time_text}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
-                    TextBox(f"数据来源: {source}  获取模式: {mode}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
-    return f
-
-
-# 获取玩家基本信息的简单卡片控件，返回Frame
-async def get_basic_profile_card(profile: BasicProfile) -> Frame:
-    with Frame().set_bg(roundrect_bg(alpha=80)).set_padding(16) as f:
-        with HSplit().set_content_align("c").set_item_align("c").set_sep(14):
-            has_frame = profile.has_frame
-            avatar_img = await get_img_from_path(ASSETS_BASE_DIR, profile.leader_image_path)
-            avatar_widget = await get_avatar_widget_with_frame(  # noqa: F841
-                is_frame=bool(has_frame),
-                frame_paths=None,  # BasicProfile 不支持 frame_paths
-                avatar_img=avatar_img,
-                avatar_w=80,
-                frame_data=[],
-            )
-            with VSplit().set_content_align("c").set_item_align("l").set_sep(5):
-                user_id = process_hide_uid(profile.is_hide_uid, profile.id, keep=6)
-                colored_text_box(
-                    truncate(profile.nickname, 64),
-                    TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2),
-                )
-                TextBox(f"{profile.region.upper()}: {user_id}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
-    return f
-
-
-# 统一的合成玩家
 
 
 async def compose_profile_image(rqd: ProfileRequest) -> Image.Image:
@@ -495,7 +433,11 @@ async def compose_profile_image(rqd: ProfileRequest) -> Image.Image:
                         continue
                     rank = character_rank[cid]
                     with Frame().set_size((gw, gh)):
-                        c_rank_path = rqd.chara_rank_icon_path_map[cid]
+                        chara_map = rqd.chara_rank_icon_path_map
+                        c_rank_path = chara_map.get(cid) or chara_map.get(str(cid))
+                        if not c_rank_path:
+                            Spacer(gw, gh)
+                            continue
                         chara_img = await get_img_from_path(ASSETS_BASE_DIR, c_rank_path)
                         ImageBox(chara_img, size=(gw, gh), use_alpha_blend=True)
                         t = TextBox(str(rank), TextStyle(font=DEFAULT_FONT, size=20, color=(40, 40, 40, 255)))
@@ -508,9 +450,14 @@ async def compose_profile_image(rqd: ProfileRequest) -> Image.Image:
                     t.set_bg(roundrect_bg(radius=6)).set_padding((10, 7))
                     with Frame():
                         scid = solo_live.character_id
-                        c_rank_path = rqd.chara_rank_icon_path_map[scid]
-                        chara_img = await get_img_from_path(ASSETS_BASE_DIR, c_rank_path)
-                        ImageBox(chara_img, size=(100, 50), use_alpha_blend=True)
+                        c_rank_path = rqd.chara_rank_icon_path_map.get(scid) or rqd.chara_rank_icon_path_map.get(
+                            str(scid)
+                        )
+                        if c_rank_path:
+                            chara_img = await get_img_from_path(ASSETS_BASE_DIR, c_rank_path)
+                            ImageBox(chara_img, size=(100, 50), use_alpha_blend=True)
+                        else:
+                            Spacer(100, 50)
                         t = TextBox(
                             str(solo_live.rank),
                             TextStyle(font=DEFAULT_FONT, size=22, color=(40, 40, 40, 255)),
